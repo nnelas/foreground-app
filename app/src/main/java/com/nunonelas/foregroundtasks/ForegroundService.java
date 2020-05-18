@@ -32,7 +32,12 @@ public class ForegroundService extends Service {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                printForegroundTask();
+                UsageStatsManager usm = getUsageStatsManager();
+                long time = getCurrentTime();
+                List<UsageStats> appList = getUsageStats(usm, time);
+                List<ActivityManager.RunningAppProcessInfo> tasks = getRunningAppProcesses();
+                String foregroundTask = getForegroundTask(appList, tasks);
+                Log.e("ForegroundService", "Current App in foreground is: " + foregroundTask);
                 handler.postDelayed(this, DELAY_TIME_MILISEC);
             }
         };
@@ -49,25 +54,8 @@ public class ForegroundService extends Service {
         return super.onStartCommand(intent, flags, startId);
     }
 
-    private String printForegroundTask() {
-        String currentApp = "NULL";
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            UsageStatsManager usm = getUsageStatsManager();
-            long time = System.currentTimeMillis();
-            List<UsageStats> appList = getUsageStats(usm, time);
-            if (appList != null && appList.size() > 0) {
-                SortedMap<Long, UsageStats> mySortedMap = getSortedUsageStats(appList);
-                if (mySortedMap != null && !mySortedMap.isEmpty()) {
-                    currentApp = mySortedMap.get(mySortedMap.lastKey()).getPackageName();
-                }
-            }
-        } else {
-            List<ActivityManager.RunningAppProcessInfo> tasks = getRunningAppProcesses();
-            currentApp = tasks.get(0).processName;
-        }
-
-        Log.e("ForegroundService", "Current App in foreground is: " + currentApp);
-        return currentApp;
+    private long getCurrentTime() {
+        return System.currentTimeMillis();
     }
 
     private UsageStatsManager getUsageStatsManager() {
@@ -78,16 +66,32 @@ public class ForegroundService extends Service {
         return usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, time - 1000 * 1000, time);
     }
 
+    private List<ActivityManager.RunningAppProcessInfo> getRunningAppProcesses() {
+        ActivityManager am = (ActivityManager) this.getSystemService(Context.ACTIVITY_SERVICE);
+        return am.getRunningAppProcesses();
+    }
+
+    private String getForegroundTask(List<UsageStats> appList,
+                                     List<ActivityManager.RunningAppProcessInfo> tasks) {
+        String currentApp = "NULL";
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            if (appList != null && !appList.isEmpty()) {
+                SortedMap<Long, UsageStats> mySortedMap = getSortedUsageStats(appList);
+                if (!mySortedMap.isEmpty()) {
+                    currentApp = mySortedMap.get(mySortedMap.lastKey()).getPackageName();
+                }
+            }
+        } else {
+            currentApp = tasks.get(0).processName;
+        }
+        return currentApp;
+    }
+
     private SortedMap<Long, UsageStats> getSortedUsageStats(List<UsageStats> appList) {
         SortedMap<Long, UsageStats> mySortedMap = new TreeMap<>();
         for (UsageStats usageStats : appList) {
             mySortedMap.put(usageStats.getLastTimeUsed(), usageStats);
         }
         return mySortedMap;
-    }
-
-    private List<ActivityManager.RunningAppProcessInfo> getRunningAppProcesses() {
-        ActivityManager am = (ActivityManager) this.getSystemService(Context.ACTIVITY_SERVICE);
-        return am.getRunningAppProcesses();
     }
 }
