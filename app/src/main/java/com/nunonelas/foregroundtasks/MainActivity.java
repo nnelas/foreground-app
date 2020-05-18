@@ -1,0 +1,52 @@
+package com.nunonelas.foregroundtasks;
+
+import android.app.AppOpsManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        boolean isGranted = isPermissionGranted(this);
+        if (!isGranted) {
+            Toast.makeText(this, "Please add 'Foreground test' to allowed apps " +
+                            "with usage access", Toast.LENGTH_LONG).show();
+            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+        }
+
+        Intent i = new Intent(this, ForegroundService.class);
+        this.startService(i);
+    }
+
+    public static boolean isPermissionGranted(Context context){
+        boolean granted;
+        AppOpsManager appOps = getAppOpsManager(context);
+        int mode = getMode(context, appOps);
+
+        if (mode == AppOpsManager.MODE_DEFAULT) {
+            granted = (context.checkCallingOrSelfPermission(
+                    android.Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED);
+        } else {
+            granted = (mode == AppOpsManager.MODE_ALLOWED);
+        }
+        return granted;
+    }
+
+    private static AppOpsManager getAppOpsManager(Context context) {
+        return (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
+    }
+
+    private static int getMode(Context context, AppOpsManager appOps) {
+        return appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    android.os.Process.myUid(), context.getPackageName());
+    }
+}
